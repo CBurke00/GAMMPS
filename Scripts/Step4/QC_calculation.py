@@ -93,7 +93,7 @@ print('{:>60}'.format(" !                                                     !"
 print('{:>60}'.format(" !  Script to perform electronic structure calculation !"))
 print('{:>60}'.format(" !      for an ensemble of SCP chain conformations     !"))
 print('{:>60}'.format(" !                                                     !"))
-print('{:>60}'.format(" !                Version 1.1: 11/01/24                !"))
+print('{:>60}'.format(" !                Version 1.3: 05/06/24                !"))
 print('{:>60}'.format(" !                                                     !"))
 print('{:>60}'.format(" !                Written by Colm Burke                !"))
 print('{:>60}'.format(" !                                                     !"))
