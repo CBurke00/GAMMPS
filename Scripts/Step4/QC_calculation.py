@@ -135,6 +135,8 @@ if "E_start" in opts:
     E_start = opts["E_start"] # desired initial energy value
 if "E_end" in opts:
     E_end = opts["E_end"] # desired final energy value
+if "point_charges" in opts:
+    point_charges = opts["point_charges"]
     
 nsamples = (nsample_end - nsample_start) + 1 # V1.1 i.e., if nsample_end is 30
                                              # and nsample_start is 20 nsamples will be 11
@@ -149,42 +151,46 @@ for file in os.listdir(cwd):
     else:
         continue
 
-with open(charge_file, 'r') as f: # Get force-field charges on polymer repeat unit (for MM part)
-    lines = f.readlines()
-    lines.pop(0)
-    monomer_charges = [float(line.split()[1]) for line in lines]
 
-# Below loop creates temporary files containing coordinates of surroundings and charges
 
-for filename in os.listdir(directory):
-    index = filename.find(".")
-    prefix = filename[:index]
-    fullpath = os.path.join(directory, filename)
-    if filename.endswith('sur.xyz'):
-        with open(fullpath, 'r') as f:
-            first_line = f.readline().strip('\n')
-            no_atoms = float(first_line) # get number of atoms in MM part
-            monomer_number = no_atoms / len(monomer_charges) # get number of monomers
-            print(monomer_number)
-            monomer_number = int(monomer_number)
-            print(monomer_number)                           
-
-            charges_list = monomer_number * monomer_charges # extends monomer charges list by factor of the number of monomers
-
-        coords = []
-        with open(fullpath, 'r') as f:
-            lines = f.readlines()[2:] # skip the first 2 lines
-            for line in lines:
-                  data = line.split()
-                  x, y, z = float(data[1]), float(data[2]), float(data[3])
-                  coords.append([x, y, z])
-
-        with open('point_charges_{}.txt'.format(prefix), 'w') as f:
-            lines_in_file = [[*sublist, charges_list[i]] for i,sublist in enumerate(coords)] # concatenate coordinates & charge
-            f.writelines("   ".join(str(i) for i in sublist) + '\n' for sublist in lines_in_file)
+if point_charges == 'only' or 'both':
+    with open(charge_file, 'r') as f: # Get force-field charges on polymer repeat unit (for MM part)
+        lines = f.readlines()
+        lines.pop(0)
+        monomer_charges = [float(line.split()[1]) for line in lines]
+    
+    # Below loop creates temporary files containing coordinates of surroundings and charges
+    
+    for filename in os.listdir(directory):
+        index = filename.find(".")
+        prefix = filename[:index]
+        fullpath = os.path.join(directory, filename)
+        if filename.endswith('sur.xyz'):
+            with open(fullpath, 'r') as f:
+                first_line = f.readline().strip('\n')
+                no_atoms = float(first_line) # get number of atoms in MM part
+                monomer_number = no_atoms / len(monomer_charges) # get number of monomers
+                #print(monomer_number)
+                monomer_number = int(monomer_number)
+                #print(monomer_number)                           
+    
+                charges_list = monomer_number * monomer_charges # extends monomer charges list by factor of the number of monomers
+    
+            coords = []
+            with open(fullpath, 'r') as f:
+                lines = f.readlines()[2:] # skip the first 2 lines
+                for line in lines:
+                      data = line.split()
+                      x, y, z = float(data[1]), float(data[2]), float(data[3])
+                      coords.append([x, y, z])
+    
+            with open('point_charges_{}.txt'.format(prefix), 'w') as f:
+                lines_in_file = [[*sublist, charges_list[i]] for i,sublist in enumerate(coords)] # concatenate coordinates & charge
+                f.writelines("   ".join(str(i) for i in sublist) + '\n' for sublist in lines_in_file)
 
 # Below loop creates Gaussian input file containing just coordinates of central chain
 # V1.1 - now modified to reformat coords as floats to prevent g16 read fail
+
 
 for filename in os.listdir(directory):
     if filename.endswith('chain_H.xyz'):
@@ -196,7 +202,10 @@ for filename in os.listdir(directory):
             output.write('%nproc=4' + '\n') # specify number of procs per g16 calc (hardcoded now but could be a variable)
             output.write('%mem=20GB' + '\n') # specify total memory for g16 calc (again hardcoded)
             output.write(f'%chk={polymer_name}_{number}.chk' + '\n') # specify chk file
-            output.write('#p b3lyp/3-21g* charge nosymm IOp(3/33=1,5/33=1,6/8=2,6/9=2,6/10=2,6/11=2) pop=full' + '\n') # this specifies basis set and full population analysis 
+            if point_charges == 'only':
+                output.write('#p b3lyp/3-21g* charge nosymm IOp(3/33=1,5/33=1,6/8=2,6/9=2,6/10=2,6/11=2) pop=full' + '\n') # this specifies basis set and full population analysis
+            else:
+                output.write('#p b3lyp/3-21g* nosymm IOp(3/33=1,5/33=1,6/8=2,6/9=2,6/10=2,6/11=2) pop=full' + '\n') # this specifies basis set and full population analysis
             output.write('\n')
             output.write(f'Gaussian single point energy calculation on {file_name}.xyz' + '\n')
             output.write('\n')
@@ -213,15 +222,16 @@ for filename in os.listdir(directory):
 
 # Below loop appends point charges to the corresponding Gaussian input file (by matching the chain number) then removes point charge files
 
-for filename in os.listdir(os.curdir):
-    if filename.startswith('point_charges'):
-        number = re.findall(r'\d+', filename)
-        number = str(number[0])
-        with open(filename, 'r') as f2, open(f'{polymer_name}_{number}.com', "a", newline='\n') as output:
-            for line in f2:
-                output.write(line)
-            output.write('\n')
-        os.remove(filename)
+if point_charges == 'only':
+    for filename in os.listdir(os.curdir):
+        if filename.startswith('point_charges'):
+            number = re.findall(r'\d+', filename)
+            number = str(number[0])
+            with open(filename, 'r') as f2, open(f'{polymer_name}_{number}.com', "a", newline='\n') as output:
+                for line in f2:
+                    output.write(line)
+                output.write('\n')
+            os.remove(filename)
 
 now = datetime.datetime.now()
 print("!-----------------------------------------------------!")
@@ -306,7 +316,8 @@ nsamples = nsamples - num_failures # V1.1: updates number of samples to account 
 
 for filename in os.listdir(os.curdir): #V1.1: remove uneccessary chk and log files
     if filename.endswith('.chk'):
-        os.remove(filename)
+        if point_charges == 'only' or 'no':
+            os.remove(filename)
     elif filename.endswith('.log'):
         os.remove(filename)
     elif filename.endswith('.com'):
@@ -580,65 +591,289 @@ if 'broadening_1' in locals() and locals()['broadening_1'] is not None:
     
     broadening_1string = str(broadening_1).replace('.', '')
     
-    with open(f'{polymer_name}_DOS_{broadening_1string}.txt', 'w') as file:
-        # Iterate through both lists simultaneously
-        for item1, item2 in zip(X, bulk_DOS_1):
-            file.write(f"{item1}\t{item2}\n")
-            
-    with open(f'{polymer_name}_LL_{broadening_1string}.txt', 'w') as file:
-        # Iterate through both lists simultaneously
-        for item1, item2 in zip(X, bulk_LL_1):
-            file.write(f"{item1}\t{item2}\n")
+    if point_charges == 'only':
+        with open(f'{polymer_name}_DOS_{broadening_1string}_pc.txt', 'w') as file:
+            # Iterate through both lists simultaneously
+            for item1, item2 in zip(X, bulk_DOS_1):
+                file.write(f"{item1}\t{item2}\n")
+                
+        with open(f'{polymer_name}_LL_{broadening_1string}_pc.txt', 'w') as file:
+            # Iterate through both lists simultaneously
+            for item1, item2 in zip(X, bulk_LL_1):
+                file.write(f"{item1}\t{item2}\n")
+    else:
+        with open(f'{polymer_name}_DOS_{broadening_1string}_iso.txt', 'w') as file:
+            # Iterate through both lists simultaneously
+            for item1, item2 in zip(X, bulk_DOS_1):
+                file.write(f"{item1}\t{item2}\n")
+                
+        with open(f'{polymer_name}_LL_{broadening_1string}_iso.txt', 'w') as file:
+            # Iterate through both lists simultaneously
+            for item1, item2 in zip(X, bulk_LL_1):
+                file.write(f"{item1}\t{item2}\n")
+        
 
 if 'broadening_2' in locals() and locals()['broadening_2'] is not None:
     X, bulk_LL_2, bulk_DOS_2 = LL_DOS_2() # call function to calculate DOS and LL
     
     broadening_2string = str(broadening_2).replace('.', '')
     
-    with open(f'{polymer_name}_DOS_{broadening_2string}.txt', 'w') as file:
-        # Iterate through both lists simultaneously
-        for item1, item2 in zip(X, bulk_DOS_2):
-            file.write(f"{item1}\t{item2}\n")
-            
-    with open(f'{polymer_name}_LL_{broadening_2string}.txt', 'w') as file:
-        # Iterate through both lists simultaneously
-        for item1, item2 in zip(X, bulk_LL_2):
-            file.write(f"{item1}\t{item2}\n")
+    if point_charges == 'only':
+        with open(f'{polymer_name}_DOS_{broadening_2string}_pc.txt', 'w') as file:
+            # Iterate through both lists simultaneously
+            for item1, item2 in zip(X, bulk_DOS_2):
+                file.write(f"{item1}\t{item2}\n")
+                
+        with open(f'{polymer_name}_LL_{broadening_2string}_pc.txt', 'w') as file:
+            # Iterate through both lists simultaneously
+            for item1, item2 in zip(X, bulk_LL_2):
+                file.write(f"{item1}\t{item2}\n")
+    
+    else:
+        with open(f'{polymer_name}_DOS_{broadening_2string}_iso.txt', 'w') as file:
+            # Iterate through both lists simultaneously
+            for item1, item2 in zip(X, bulk_DOS_2):
+                file.write(f"{item1}\t{item2}\n")
+                
+        with open(f'{polymer_name}_LL_{broadening_2string}_iso.txt', 'w') as file:
+            # Iterate through both lists simultaneously
+            for item1, item2 in zip(X, bulk_LL_2):
+                file.write(f"{item1}\t{item2}\n")
     
 if 'broadening_3' in locals() and locals()['broadening_3'] is not None:
     X, bulk_LL_3, bulk_DOS_3 = LL_DOS_3() # call function to calculate DOS and LL
     
     broadening_3string = str(broadening_3).replace('.', '')
     
-    with open(f'{polymer_name}_DOS_{broadening_3string}.txt', 'w') as file:
-        # Iterate through both lists simultaneously
-        for item1, item2 in zip(X, bulk_DOS_3):
-            file.write(f"{item1}\t{item2}\n")
-            
-    with open(f'{polymer_name}_LL_{broadening_3string}.txt', 'w') as file:
-        # Iterate through both lists simultaneously
-        for item1, item2 in zip(X, bulk_LL_3):
-            file.write(f"{item1}\t{item2}\n")
+    if point_charges == 'only':
+        with open(f'{polymer_name}_DOS_{broadening_3string}_pc.txt', 'w') as file:
+            # Iterate through both lists simultaneously
+            for item1, item2 in zip(X, bulk_DOS_3):
+                file.write(f"{item1}\t{item2}\n")
+                
+        with open(f'{polymer_name}_LL_{broadening_3string}_pc.txt', 'w') as file:
+            # Iterate through both lists simultaneously
+            for item1, item2 in zip(X, bulk_LL_3):
+                file.write(f"{item1}\t{item2}\n")
+    else:
+        with open(f'{polymer_name}_DOS_{broadening_3string}_iso.txt', 'w') as file:
+            # Iterate through both lists simultaneously
+            for item1, item2 in zip(X, bulk_DOS_3):
+                file.write(f"{item1}\t{item2}\n")
+                
+        with open(f'{polymer_name}_LL_{broadening_3string}_iso.txt', 'w') as file:
+            # Iterate through both lists simultaneously
+            for item1, item2 in zip(X, bulk_LL_3):
+                file.write(f"{item1}\t{item2}\n")
+        
     
 if 'broadening_4' in locals() and locals()['broadening_4'] is not None:
     X, bulk_LL_4, bulk_DOS_4 = LL_DOS_4() # call function to calculate DOS and LL
     
     broadening_4string = str(broadening_4).replace('.', '')
 
-    with open(f'{polymer_name}_DOS_{broadening_4string}.txt', 'w') as file:
-        # Iterate through both lists simultaneously
-        for item1, item2 in zip(X, bulk_DOS_4):
-            file.write(f"{item1}\t{item2}\n")
-            
-    with open(f'{polymer_name}_LL_{broadening_4string}.txt', 'w') as file:
-        # Iterate through both lists simultaneously
-        for item1, item2 in zip(X, bulk_LL_4):
-            file.write(f"{item1}\t{item2}\n")
+    if point_charges == 'only':
+        with open(f'{polymer_name}_DOS_{broadening_4string}_pc.txt', 'w') as file:
+            # Iterate through both lists simultaneously
+            for item1, item2 in zip(X, bulk_DOS_4):
+                file.write(f"{item1}\t{item2}\n")
+                
+        with open(f'{polymer_name}_LL_{broadening_4string}_pc.txt', 'w') as file:
+            # Iterate through both lists simultaneously
+            for item1, item2 in zip(X, bulk_LL_4):
+                file.write(f"{item1}\t{item2}\n")
+    
+    else:
+        with open(f'{polymer_name}_DOS_{broadening_4string}_iso.txt', 'w') as file:
+            # Iterate through both lists simultaneously
+            for item1, item2 in zip(X, bulk_DOS_4):
+                file.write(f"{item1}\t{item2}\n")
+                
+        with open(f'{polymer_name}_LL_{broadening_4string}_iso.txt', 'w') as file:
+            # Iterate through both lists simultaneously
+            for item1, item2 in zip(X, bulk_LL_4):
+                file.write(f"{item1}\t{item2}\n")
 
 
 for filename in os.listdir(os.curdir):
     if filename.endswith('.npz'):
         os.remove(filename)
+        
+if point_charges == 'both':
+    now = datetime.datetime.now()
+    print("!-----------------------------------------------------!")
+    print("    Calculations on isolated chains finished at:")
+    print (str(now))
+    print("!-----------------------------------------------------!")
+    
+    for filename in os.listdir(directory):
+        if filename.endswith('chain_H.xyz'):
+            file_name = os.path.splitext(filename)[0]
+            fullpath = os.path.join(directory, filename)
+            number = re.findall(r'\d+', file_name)
+            number = str(number[0])
+            with open(fullpath, 'r') as f1, open(f'{polymer_name}_{number}_pc.com', "w", newline='\n') as output:
+                output.write('%nproc=4' + '\n') # specify number of procs per g16 calc (hardcoded now but could be a variable)
+                output.write('%mem=20GB' + '\n') # specify total memory for g16 calc (again hardcoded)
+                output.write(f'%oldchk={polymer_name}_{number}.chk' + '\n')
+                output.write(f'%chk={polymer_name}_{number}_pc.chk' + '\n') # specify chk file
+                output.write('#p b3lyp/3-21g* charge nosymm IOp(3/33=1,5/33=1,6/8=2,6/9=2,6/10=2,6/11=2) pop=full' + '\n') # this specifies basis set and full population analysis
+                output.write('\n')
+                output.write(f'Gaussian single point energy calculation on {file_name}.xyz' + '\n')
+                output.write('\n')
+                output.write('0,1' + '\n')
+                i = 0
+                for line in f1:
+                   if i < 2:
+                       i += 1
+                       continue               
+                   data = line.split()
+                   x, y, z = float(data[1]), float(data[2]), float(data[3])
+                   output.write(str(data[0])+"   "+str(x)+"   "+str(y)+"   "+str(z)+'\n')
+                output.write('\n')
+
+    # Below loop appends point charges to the corresponding Gaussian input file (by matching the chain number) then removes point charge files
+
+    for filename in os.listdir(os.curdir):
+        if filename.startswith('point_charges'):
+            number = re.findall(r'\d+', filename)
+            number = str(number[0])
+            with open(filename, 'r') as f2, open(f'{polymer_name}_{number}_pc.com', "a", newline='\n') as output:
+                for line in f2:
+                    output.write(line)
+                output.write('\n')
+            os.remove(filename)
+    
+    list_calcg16_pc = []
+
+    for i in range(nsample_start,(nsample_end+1)): # V1.1 only the samples specified will be launched
+        list_calcg16_pc.append(f'{polymer_name}_{i}_pc.com')
+            
+    with Pool(10) as p: # 10 concurrent worker processes (utilising 4 cores per calculation)
+        results = []
+        r = p.map_async(run_g16_parallel_list, list_calcg16_pc,
+                        callback=results.append)
+        r.get()
+        results = results[0]
+        
+    now = datetime.datetime.now()
+    print("!-----------------------------------------------------!")
+    print("    g16 calculations (point charges) finished at:")
+    print (str(now))
+    print("!-----------------------------------------------------!")
+    
+    log_files = []
+    for file in os.listdir(os.curdir):
+        if file.endswith('.log'):
+            log_files.append(file)
+
+    if nsamples >= 40:
+        ntasks_savelog = 40
+    else: 
+        ntasks_savelog = nsamples
+
+    with Pool(ntasks_savelog) as p: # 40 concurrent worker processes (1 core per process)
+        results = []
+        r = p.map_async(save_to_npz, log_files,
+                        callback=results.append)
+        r.get()
+        
+    num_failures = sum(result is not None for result in results)
+    nsamples = (nsample_end - nsample_start) + 1
+    nsamples = nsamples - num_failures # V1.1: updates number of samples to account for failures
+
+    for filename in os.listdir(os.curdir): #V1.1: remove uneccessary chk and log files
+        if filename.endswith('.chk'):
+            os.remove(filename)
+        elif filename.endswith('.log'):
+            os.remove(filename)
+        elif filename.endswith('.com'):
+            os.remove(filename)
+            
+    now = datetime.datetime.now()
+    print("!-----------------------------------------------------!")
+    print("    Necessary data extracted from log files (point charges) at:")
+    print (str(now))
+    print("!-----------------------------------------------------!")
+    
+    cwd = os.getcwd()
+    for file in os.listdir(cwd): # Reads one .npz file to get nbasis and natoms values
+        if file.endswith('.npz'):
+            file_path = os.path.join(cwd, file)
+            test = np.load(file_path)
+            mocoeffs = test['mocoeffs']
+            natoms = test['natoms']
+            nbasis = len(mocoeffs)
+            break
+        
+    coeff_ranges = (calculate_coeff_ranges(nbasis, chainlength))
+    monomer_ranges = (calculate_monomer_ranges(natoms,chainlength))
+
+    if 'broadening_1' in locals() and locals()['broadening_1'] is not None:
+        X, bulk_LL_1, bulk_DOS_1 = LL_DOS_1() # call function to calculate DOS and LL
+        
+        broadening_1string = str(broadening_1).replace('.', '')
+        
+        with open(f'{polymer_name}_DOS_{broadening_1string}_pc.txt', 'w') as file:
+            # Iterate through both lists simultaneously
+            for item1, item2 in zip(X, bulk_DOS_1):
+                file.write(f"{item1}\t{item2}\n")
+                
+        with open(f'{polymer_name}_LL_{broadening_1string}_pc.txt', 'w') as file:
+            # Iterate through both lists simultaneously
+            for item1, item2 in zip(X, bulk_LL_1):
+                file.write(f"{item1}\t{item2}\n")
+
+    if 'broadening_2' in locals() and locals()['broadening_2'] is not None:
+        X, bulk_LL_2, bulk_DOS_2 = LL_DOS_2() # call function to calculate DOS and LL
+        
+        broadening_2string = str(broadening_2).replace('.', '')
+        
+        with open(f'{polymer_name}_DOS_{broadening_2string}_pc.txt', 'w') as file:
+            # Iterate through both lists simultaneously
+            for item1, item2 in zip(X, bulk_DOS_2):
+                file.write(f"{item1}\t{item2}\n")
+                
+        with open(f'{polymer_name}_LL_{broadening_2string}_pc.txt', 'w') as file:
+            # Iterate through both lists simultaneously
+            for item1, item2 in zip(X, bulk_LL_2):
+                file.write(f"{item1}\t{item2}\n")
+        
+    if 'broadening_3' in locals() and locals()['broadening_3'] is not None:
+        X, bulk_LL_3, bulk_DOS_3 = LL_DOS_3() # call function to calculate DOS and LL
+        
+        broadening_3string = str(broadening_3).replace('.', '')
+        
+        with open(f'{polymer_name}_DOS_{broadening_3string}_pc.txt', 'w') as file:
+            # Iterate through both lists simultaneously
+            for item1, item2 in zip(X, bulk_DOS_3):
+                file.write(f"{item1}\t{item2}\n")
+                
+        with open(f'{polymer_name}_LL_{broadening_3string}_pc.txt', 'w') as file:
+            # Iterate through both lists simultaneously
+            for item1, item2 in zip(X, bulk_LL_3):
+                file.write(f"{item1}\t{item2}\n")
+        
+    if 'broadening_4' in locals() and locals()['broadening_4'] is not None:
+        X, bulk_LL_4, bulk_DOS_4 = LL_DOS_4() # call function to calculate DOS and LL
+        
+        broadening_4string = str(broadening_4).replace('.', '')
+
+        with open(f'{polymer_name}_DOS_{broadening_4string}_pc.txt', 'w') as file:
+            # Iterate through both lists simultaneously
+            for item1, item2 in zip(X, bulk_DOS_4):
+                file.write(f"{item1}\t{item2}\n")
+                
+        with open(f'{polymer_name}_LL_{broadening_4string}_pc.txt', 'w') as file:
+            # Iterate through both lists simultaneously
+            for item1, item2 in zip(X, bulk_LL_4):
+                file.write(f"{item1}\t{item2}\n")
+
+
+    for filename in os.listdir(os.curdir):
+        if filename.endswith('.npz'):
+            os.remove(filename)
+    
         
 ####################### END OF LOOP #########################
         
