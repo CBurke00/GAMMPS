@@ -93,7 +93,7 @@ print('{:>60}'.format(" !                                                     !"
 print('{:>60}'.format(" !  Script to perform electronic structure calculation !"))
 print('{:>60}'.format(" !      for an ensemble of SCP chain conformations     !"))
 print('{:>60}'.format(" !                                                     !"))
-print('{:>60}'.format(" !                Version 1.3: 05/06/24                !"))
+print('{:>60}'.format(" !                Version 1.3: 06/06/24                !"))
 print('{:>60}'.format(" !                                                     !"))
 print('{:>60}'.format(" !                Written by Colm Burke                !"))
 print('{:>60}'.format(" !                                                     !"))
@@ -151,8 +151,6 @@ for file in os.listdir(cwd):
     else:
         continue
 
-
-
 if point_charges == 'only' or 'both':
     with open(charge_file, 'r') as f: # Get force-field charges on polymer repeat unit (for MM part)
         lines = f.readlines()
@@ -191,7 +189,6 @@ if point_charges == 'only' or 'both':
 # Below loop creates Gaussian input file containing just coordinates of central chain
 # V1.1 - now modified to reformat coords as floats to prevent g16 read fail
 
-
 for filename in os.listdir(directory):
     if filename.endswith('chain_H.xyz'):
         file_name = os.path.splitext(filename)[0]
@@ -205,7 +202,7 @@ for filename in os.listdir(directory):
             if point_charges == 'only':
                 output.write('#p b3lyp/3-21g* charge nosymm IOp(3/33=1,5/33=1,6/8=2,6/9=2,6/10=2,6/11=2) pop=full' + '\n') # this specifies basis set and full population analysis
             else:
-                output.write('#p b3lyp/3-21g* nosymm IOp(3/33=1,5/33=1,6/8=2,6/9=2,6/10=2,6/11=2) pop=full' + '\n') # this specifies basis set and full population analysis
+                output.write('#p b3lyp/3-21g* nosymm IOp(3/33=1,5/33=1,6/8=2,6/9=2,6/10=2,6/11=2) pop=full' + '\n') # if calculated on isolated chain performed
             output.write('\n')
             output.write(f'Gaussian single point energy calculation on {file_name}.xyz' + '\n')
             output.write('\n')
@@ -220,7 +217,8 @@ for filename in os.listdir(directory):
                output.write(str(data[0])+"   "+str(x)+"   "+str(y)+"   "+str(z)+'\n')
             output.write('\n')
 
-# Below loop appends point charges to the corresponding Gaussian input file (by matching the chain number) then removes point charge files
+# Below loop appends point charges to the corresponding Gaussian input file (by matching the chain number) then removes point charge files (if only a calculation
+# with point charges has been specified by the user)
 
 if point_charges == 'only':
     for filename in os.listdir(os.curdir):
@@ -612,7 +610,6 @@ if 'broadening_1' in locals() and locals()['broadening_1'] is not None:
             for item1, item2 in zip(X, bulk_LL_1):
                 file.write(f"{item1}\t{item2}\n")
         
-
 if 'broadening_2' in locals() and locals()['broadening_2'] is not None:
     X, bulk_LL_2, bulk_DOS_2 = LL_DOS_2() # call function to calculate DOS and LL
     
@@ -665,8 +662,7 @@ if 'broadening_3' in locals() and locals()['broadening_3'] is not None:
             # Iterate through both lists simultaneously
             for item1, item2 in zip(X, bulk_LL_3):
                 file.write(f"{item1}\t{item2}\n")
-        
-    
+            
 if 'broadening_4' in locals() and locals()['broadening_4'] is not None:
     X, bulk_LL_4, bulk_DOS_4 = LL_DOS_4() # call function to calculate DOS and LL
     
@@ -694,11 +690,13 @@ if 'broadening_4' in locals() and locals()['broadening_4'] is not None:
             for item1, item2 in zip(X, bulk_LL_4):
                 file.write(f"{item1}\t{item2}\n")
 
-
 for filename in os.listdir(os.curdir):
     if filename.endswith('.npz'):
         os.remove(filename)
-        
+
+# For calculations types 'only' and 'no' (referring to inclusion of point charges), the script ends here
+# The below section calculates the DOS and LL with point charge inclusion (using the checkpoint of the isolated calculation)
+
 if point_charges == 'both':
     now = datetime.datetime.now()
     print("!-----------------------------------------------------!")
@@ -869,12 +867,10 @@ if point_charges == 'both':
             for item1, item2 in zip(X, bulk_LL_4):
                 file.write(f"{item1}\t{item2}\n")
 
-
     for filename in os.listdir(os.curdir):
         if filename.endswith('.npz'):
             os.remove(filename)
     
-        
 ####################### END OF LOOP #########################
         
 now = datetime.datetime.now()
