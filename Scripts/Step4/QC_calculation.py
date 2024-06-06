@@ -316,7 +316,7 @@ nsamples = nsamples - num_failures # V1.1: updates number of samples to account 
 
 for filename in os.listdir(os.curdir): #V1.1: remove uneccessary chk and log files
     if filename.endswith('.chk'):
-        if point_charges == 'only' or 'no':
+        if point_charges == 'only' or point_charges == 'no':
             os.remove(filename)
     elif filename.endswith('.log'):
         os.remove(filename)
@@ -717,19 +717,19 @@ if point_charges == 'both':
                 output.write('%mem=20GB' + '\n') # specify total memory for g16 calc (again hardcoded)
                 output.write(f'%oldchk={polymer_name}_{number}.chk' + '\n')
                 output.write(f'%chk={polymer_name}_{number}_pc.chk' + '\n') # specify chk file
-                output.write('#p b3lyp/3-21g* charge nosymm IOp(3/33=1,5/33=1,6/8=2,6/9=2,6/10=2,6/11=2) pop=full' + '\n') # this specifies basis set and full population analysis
+                output.write('#p b3lyp/3-21g* guess=read geom=check charge nosymm IOp(3/33=1,5/33=1,6/8=2,6/9=2,6/10=2,6/11=2) pop=full' + '\n') # this specifies basis set and full population analysis
                 output.write('\n')
                 output.write(f'Gaussian single point energy calculation on {file_name}.xyz' + '\n')
                 output.write('\n')
                 output.write('0,1' + '\n')
-                i = 0
-                for line in f1:
-                   if i < 2:
-                       i += 1
-                       continue               
-                   data = line.split()
-                   x, y, z = float(data[1]), float(data[2]), float(data[3])
-                   output.write(str(data[0])+"   "+str(x)+"   "+str(y)+"   "+str(z)+'\n')
+                #i = 0
+                #for line in f1:
+                #   if i < 2:
+                #       i += 1
+                #       continue               
+                #   data = line.split()
+                #   x, y, z = float(data[1]), float(data[2]), float(data[3])
+                #   output.write(str(data[0])+"   "+str(x)+"   "+str(y)+"   "+str(z)+'\n')
                 output.write('\n')
 
     # Below loop appends point charges to the corresponding Gaussian input file (by matching the chain number) then removes point charge files
@@ -788,7 +788,7 @@ if point_charges == 'both':
         elif filename.endswith('.log'):
             os.remove(filename)
         elif filename.endswith('.com'):
-            os.remove(filename)
+           os.remove(filename)
             
     now = datetime.datetime.now()
     print("!-----------------------------------------------------!")
