@@ -151,7 +151,7 @@ for file in os.listdir(cwd):
     else:
         continue
 
-if point_charges == 'only' or 'both':
+if point_charges == 'only' or point_charges == 'both':
     with open(charge_file, 'r') as f: # Get force-field charges on polymer repeat unit (for MM part)
         lines = f.readlines()
         lines.pop(0)
